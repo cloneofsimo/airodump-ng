@@ -2,7 +2,7 @@
 #include <libnet.h>
 #include <pcap.h>
 using namespace std;
-
+#pragma pack(push, 1)
 struct Mac {
     uint8_t mac[6];
     Mac(uint8_t* m) {
@@ -21,17 +21,19 @@ struct Mac {
         return memcmp(mac, m.mac, 6) > 0;
     }
 };
+#pragma pack(pop)
 
-#pragma pack(push, 1)
+
 struct Beacon {
     uint8_t type;
     uint8_t flags;
     uint16_t duration;
     Mac addr;
+    Mac addr2;
     Mac bssid;
     uint16_t seq;
 };
-#pragma pack(pop)
+
 
 #pragma pack(push, 1)
 struct RadioTap {
@@ -76,24 +78,29 @@ int main(int argc, char* argv[]) {
             break;
         }
 
+        cout << "foundpkt" << '\n';
+
         RadioTap* radio_tap = (RadioTap*)packet;
         Beacon* dot11_beacon = (Beacon*)(packet + radio_tap->len);
-        if (!(dot11_beacon->type != 0x80 || dot11_beacon->flags != 0x00)) {
+        if (dot11_beacon->type == 0x80) {
 
             // if beacon
 
             Mac addr = Mac(dot11_beacon->addr.mac);
             Mac bssid = Mac(dot11_beacon->bssid.mac);
-            if (beacons.find(addr) == beacons.end()) {
-                beacons[addr] = dot11_beacon->seq;
+            if (beacons.find(bssid) == beacons.end()) {
+                beacons[bssid] = 0;
                 string essid = "";
-                const u_char* essid_c = packet + 64;
-                while (*essid_c != 0) {
+                const u_char* essid_c = packet + 62;
+                while (*essid_c > 0x1) {
                     essid += *essid_c;
                     essid_c++;
                 }
-                essids[addr] = essid;
+                essid += '\0';
+                essids[bssid] = essid;
             }
+            beacons[bssid] += 1;
+
 
             // clear console
             system("clear");
@@ -106,16 +113,9 @@ int main(int argc, char* argv[]) {
                 printf("%02x:%02x:%02x:%02x:%02x:%02x %s %d\n",
                     mac.mac[0], mac.mac[1], mac.mac[2],
                     mac.mac[3], mac.mac[4], mac.mac[5],
-                    essid.c_str(), seq);
+                    essid.c_str(), seq >> 4);
             }
-
-
-
-
-
         }
-
-
     }
 
 
